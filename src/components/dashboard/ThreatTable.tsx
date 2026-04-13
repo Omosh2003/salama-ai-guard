@@ -18,7 +18,7 @@ const statusBadge: Record<string, string> = {
 
 export default function ThreatTable({ threats }: { threats: ThreatEvent[] }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border shadow-card">
+    <div className="overflow-hidden rounded-xl border border-border shadow-card text-xs sm:text-sm">
       <div className="border-b border-border bg-card px-5 py-4">
         <h3 className="font-heading text-sm font-semibold text-foreground">
           Recent Threat Events

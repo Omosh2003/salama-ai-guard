@@ -22,7 +22,7 @@ export default function ThreatsPage() {
       </div>
 
       {/* Threat Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         {[
           { label: "Active", count: recentThreats.filter(t => t.status === "active").length, cls: "text-destructive bg-destructive/10 border-destructive/20" },
           { label: "Investigating", count: recentThreats.filter(t => t.status === "investigating").length, cls: "text-warning bg-warning/10 border-warning/20" },
