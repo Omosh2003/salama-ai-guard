@@ -24,8 +24,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route element={<DashboardLayout />}>
-            <Route path="/" element={<DashboardPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/threats" element={<ThreatsPage />} />
             <Route path="/anomalies" element={<AnomaliesPage />} />
             <Route path="/phishing" element={<PhishingPage />} />
