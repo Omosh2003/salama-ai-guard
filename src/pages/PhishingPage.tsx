@@ -1,55 +1,36 @@
 import { useState } from "react";
-import { Mail, Link, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
+import { Mail, Link, AlertTriangle, CheckCircle, Loader2, Shield, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/sonner";
+
+interface PhishingIndicator {
+  indicator: string;
+  severity: "safe" | "suspicious" | "dangerous";
+  detail: string;
+}
 
 interface ScanResult {
-  score: number;
-  verdict: "safe" | "suspicious" | "phishing";
-  indicators: string[];
+  risk_score: number;
+  risk_level: "info" | "low" | "medium" | "high" | "critical";
+  indicators: PhishingIndicator[];
+  summary: string;
+  recommendation: string;
 }
 
-function analyzeInput(input: string): ScanResult {
-  const lowerInput = input.toLowerCase();
-  let score = 0;
-  const indicators: string[] = [];
+const riskColors: Record<string, string> = {
+  info: "text-accent border-accent/30 bg-accent/5",
+  low: "text-primary border-primary/30 bg-primary/5",
+  medium: "text-warning border-warning/30 bg-warning/5",
+  high: "text-destructive border-destructive/30 bg-destructive/5",
+  critical: "text-destructive border-destructive/50 bg-destructive/10",
+};
 
-  const phishingKeywords = [
-    "urgent", "verify your account", "click here", "password", "suspended",
-    "confirm identity", "act now", "limited time", "bank", "login",
-    "security alert", "unauthorized", "update payment",
-  ];
-  const suspiciousPatterns = [
-    /bit\.ly/i, /tinyurl/i, /[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/,
-    /@.*@/, /\.ru\b/, /\.cn\b/, /free.*gift/i, /winner/i,
-  ];
-
-  phishingKeywords.forEach((kw) => {
-    if (lowerInput.includes(kw)) {
-      score += 15;
-      indicators.push(`Contains phishing keyword: "${kw}"`);
-    }
-  });
-
-  suspiciousPatterns.forEach((pat) => {
-    if (pat.test(lowerInput)) {
-      score += 20;
-      indicators.push(`Matches suspicious pattern: ${pat.source}`);
-    }
-  });
-
-  if (lowerInput.includes("http") && !lowerInput.includes("https")) {
-    score += 10;
-    indicators.push("Uses insecure HTTP link");
-  }
-
-  if (indicators.length === 0) {
-    indicators.push("No known phishing indicators detected");
-  }
-
-  score = Math.min(score, 100);
-  const verdict = score >= 60 ? "phishing" : score >= 30 ? "suspicious" : "safe";
-  return { score, verdict, indicators };
-}
+const severityDot: Record<string, string> = {
+  safe: "bg-primary",
+  suspicious: "bg-warning",
+  dangerous: "bg-destructive",
+};
 
 export default function PhishingPage() {
   const [inputType, setInputType] = useState<"email" | "url">("email");
@@ -57,20 +38,32 @@ export default function PhishingPage() {
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
 
-  const handleScan = () => {
+  const handleScan = async () => {
     if (!input.trim()) return;
     setScanning(true);
     setResult(null);
-    setTimeout(() => {
-      setResult(analyzeInput(input));
-      setScanning(false);
-    }, 1500);
-  };
 
-  const verdictColors = {
-    safe: "text-primary border-primary/30 bg-primary/5",
-    suspicious: "text-warning border-warning/30 bg-warning/5",
-    phishing: "text-destructive border-destructive/30 bg-destructive/5",
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-phishing", {
+        body: { inputText: input, inputType },
+      });
+
+      if (error) {
+        toast.error(error.message || "Analysis failed");
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      setResult(data as ScanResult);
+    } catch (e) {
+      toast.error("Failed to connect to analysis service");
+    } finally {
+      setScanning(false);
+    }
   };
 
   return (
@@ -80,15 +73,14 @@ export default function PhishingPage() {
           <Mail className="h-5 w-5 text-warning" />
         </div>
         <div>
-          <h2 className="font-heading text-xl font-bold text-foreground">Phishing Detection</h2>
+          <h2 className="font-heading text-xl font-bold text-foreground">AI Phishing Scanner</h2>
           <p className="text-xs text-muted-foreground">
-            AI-powered NLP classification for emails & URLs
+            Powered by AI — analyzes emails & URLs for phishing indicators
           </p>
         </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-6 shadow-card">
-        {/* Input Type Toggle */}
         <div className="mb-4 flex gap-2">
           {(["email", "url"] as const).map((t) => (
             <button
@@ -106,13 +98,13 @@ export default function PhishingPage() {
           ))}
         </div>
 
-        {/* Input Area */}
         {inputType === "email" ? (
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Paste email content here for analysis..."
+            placeholder="Paste email content here for AI analysis..."
             rows={6}
+            maxLength={5000}
             className="w-full rounded-lg border border-border bg-muted/30 px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         ) : (
@@ -120,6 +112,7 @@ export default function PhishingPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Enter URL to analyze..."
+            maxLength={2000}
             className="w-full rounded-lg border border-border bg-muted/30 px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         )}
@@ -132,64 +125,73 @@ export default function PhishingPage() {
           {scanning ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Analyzing...
+              AI Analyzing...
             </>
           ) : (
-            "Scan for Phishing"
+            <>
+              <Shield className="h-4 w-4" />
+              Scan with AI
+            </>
           )}
         </button>
       </div>
 
-      {/* Results */}
       <AnimatePresence>
         {result && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className={`rounded-xl border p-6 shadow-card ${verdictColors[result.verdict]}`}
+            className={`rounded-xl border p-6 shadow-card ${riskColors[result.risk_level]}`}
           >
             <div className="flex items-center gap-3">
-              {result.verdict === "safe" ? (
+              {result.risk_score < 30 ? (
                 <CheckCircle className="h-8 w-8" />
               ) : (
                 <AlertTriangle className="h-8 w-8" />
               )}
               <div>
-                <h3 className="font-heading text-lg font-bold uppercase">{result.verdict}</h3>
+                <h3 className="font-heading text-lg font-bold uppercase">{result.risk_level}</h3>
                 <p className="text-sm opacity-80">
-                  Phishing probability: <span className="font-mono font-bold">{result.score}%</span>
+                  Risk score: <span className="font-mono font-bold">{result.risk_score}%</span>
                 </p>
               </div>
             </div>
 
-            {/* Score Bar */}
             <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-muted">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${result.score}%` }}
+                animate={{ width: `${result.risk_score}%` }}
                 transition={{ duration: 0.8 }}
                 className={`h-full rounded-full ${
-                  result.verdict === "safe"
-                    ? "bg-primary"
-                    : result.verdict === "suspicious"
-                    ? "bg-warning"
-                    : "bg-destructive"
+                  result.risk_score < 30 ? "bg-primary" : result.risk_score < 60 ? "bg-warning" : "bg-destructive"
                 }`}
               />
             </div>
 
+            {/* Summary */}
+            <div className="mt-4 rounded-lg bg-background/50 p-3">
+              <p className="text-sm font-medium">{result.summary}</p>
+            </div>
+
             {/* Indicators */}
             <div className="mt-4 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider opacity-70">
-                Indicators
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-wider opacity-70">Indicators</p>
               {result.indicators.map((ind, i) => (
-                <p key={i} className="flex items-center gap-2 text-sm">
-                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                  {ind}
-                </p>
+                <div key={i} className="flex items-start gap-2 text-sm">
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${severityDot[ind.severity]}`} />
+                  <div>
+                    <span className="font-medium">{ind.indicator}</span>
+                    <p className="text-xs opacity-70">{ind.detail}</p>
+                  </div>
+                </div>
               ))}
+            </div>
+
+            {/* Recommendation */}
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-current/20 bg-background/30 p-3">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" />
+              <p className="text-sm">{result.recommendation}</p>
             </div>
           </motion.div>
         )}
