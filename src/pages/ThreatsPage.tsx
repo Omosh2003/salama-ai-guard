@@ -3,7 +3,7 @@ import { Shield, Filter, Loader2 } from "lucide-react";
 import { useThreats } from "@/hooks/useThreats";
 
 export default function ThreatsPage() {
-  const { threats, loading } = useThreats();
+  const { threats, loading, cycleStatus } = useThreats();
 
   return (
     <div className="space-y-6">
@@ -43,7 +43,7 @@ export default function ThreatsPage() {
             ))}
           </div>
 
-          <ThreatTable threats={threats} />
+          <ThreatTable threats={threats} onCycleStatus={cycleStatus} />
         </>
       )}
     </div>

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Bell, CheckCircle, AlertTriangle, XCircle, Info, Loader2 } from "lucide-react";
+import { Bell, CheckCircle, AlertTriangle, XCircle, Info, Loader2, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 type AlertLevel = "critical" | "high" | "medium" | "low" | "info";
 
@@ -39,18 +40,55 @@ export default function AlertsPage() {
     load();
   }, []);
 
+  const markRead = async (id: string) => {
+    const prev = alerts;
+    setAlerts((curr) => curr.map((a) => (a.id === id ? { ...a, is_read: true } : a)));
+    const { error } = await supabase.from("alerts").update({ is_read: true }).eq("id", id);
+    if (error) {
+      setAlerts(prev);
+      toast.error("Failed to mark as read");
+    }
+  };
+
+  const markAllRead = async () => {
+    const unread = alerts.filter((a) => !a.is_read).map((a) => a.id);
+    if (unread.length === 0) return;
+    const prev = alerts;
+    setAlerts((curr) => curr.map((a) => ({ ...a, is_read: true })));
+    const { error } = await supabase.from("alerts").update({ is_read: true }).in("id", unread);
+    if (error) {
+      setAlerts(prev);
+      toast.error("Failed to mark all as read");
+    } else {
+      toast.success(`Marked ${unread.length} alert(s) as read`);
+    }
+  };
+
+  const unreadCount = alerts.filter((a) => !a.is_read).length;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="rounded-lg bg-destructive/10 p-2.5">
-          <Bell className="h-5 w-5 text-destructive" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-destructive/10 p-2.5">
+            <Bell className="h-5 w-5 text-destructive" />
+          </div>
+          <div>
+            <h2 className="font-heading text-xl font-bold text-foreground">Alert Center</h2>
+            <p className="text-xs text-muted-foreground">
+              {unreadCount > 0 ? `${unreadCount} unread alert(s)` : "All caught up"}
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="font-heading text-xl font-bold text-foreground">Alert Center</h2>
-          <p className="text-xs text-muted-foreground">
-            Real-time security alerts & notifications
-          </p>
-        </div>
+        {unreadCount > 0 && (
+          <button
+            onClick={markAllRead}
+            className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+          >
+            <Check className="h-3.5 w-3.5" />
+            Mark all as read
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -78,7 +116,7 @@ export default function AlertsPage() {
               >
                 <Icon className="mt-0.5 h-5 w-5 flex-shrink-0" />
                 <div className="flex-1">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <h4 className="text-sm font-semibold">{alert.title}</h4>
                     <span className="text-[10px] font-mono text-muted-foreground">
                       {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
@@ -87,7 +125,14 @@ export default function AlertsPage() {
                   {alert.message && <p className="mt-1 text-xs opacity-80">{alert.message}</p>}
                 </div>
                 {!alert.is_read && (
-                  <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-current" />
+                  <button
+                    onClick={() => markRead(alert.id)}
+                    className="flex flex-shrink-0 items-center gap-1 rounded-md border border-current/30 bg-current/5 px-2 py-1 text-[10px] font-medium transition-colors hover:bg-current/10"
+                    title="Mark as read"
+                  >
+                    <Check className="h-3 w-3" />
+                    Read
+                  </button>
                 )}
               </motion.div>
             );
