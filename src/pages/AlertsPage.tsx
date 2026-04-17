@@ -38,6 +38,30 @@ export default function AlertsPage() {
       setLoading(false);
     };
     load();
+
+    const channel = supabase
+      .channel("alerts-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "alerts" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const a = payload.new as AlertRow;
+            setAlerts((curr) => (curr.some((x) => x.id === a.id) ? curr : [a, ...curr]));
+          } else if (payload.eventType === "UPDATE") {
+            const a = payload.new as AlertRow;
+            setAlerts((curr) => curr.map((x) => (x.id === a.id ? a : x)));
+          } else if (payload.eventType === "DELETE") {
+            const id = (payload.old as { id: string }).id;
+            setAlerts((curr) => curr.filter((x) => x.id !== id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const markRead = async (id: string) => {
