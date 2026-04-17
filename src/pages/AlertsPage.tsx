@@ -1,56 +1,19 @@
-import { Bell, CheckCircle, AlertTriangle, XCircle, Info } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, CheckCircle, AlertTriangle, XCircle, Info, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDistanceToNow } from "date-fns";
 
-const alerts = [
-  {
-    id: 1,
-    level: "critical" as const,
-    title: "Brute Force Attack Detected",
-    message: "Multiple failed SSH login attempts from 41.215.130.12. Auto-blocked after 5 attempts.",
-    time: "2 min ago",
-    read: false,
-  },
-  {
-    id: 2,
-    level: "high" as const,
-    title: "Phishing Campaign Targeting Faculty",
-    message: "12 phishing emails detected targeting faculty staff with credential harvesting links.",
-    time: "15 min ago",
-    read: false,
-  },
-  {
-    id: 3,
-    level: "high" as const,
-    title: "Unusual Data Transfer",
-    message: "2.3GB transfer to external IP from database server detected outside business hours.",
-    time: "32 min ago",
-    read: false,
-  },
-  {
-    id: 4,
-    level: "medium" as const,
-    title: "SSL Certificate Expiring",
-    message: "The SSL certificate for portal.university.ac.ke expires in 7 days.",
-    time: "1 hour ago",
-    read: true,
-  },
-  {
-    id: 5,
-    level: "low" as const,
-    title: "Port Scan Detected",
-    message: "Sequential port scan from 103.45.67.89. No vulnerabilities exploited.",
-    time: "2 hours ago",
-    read: true,
-  },
-  {
-    id: 6,
-    level: "info" as const,
-    title: "AI Model Updated",
-    message: "Anomaly detection model retrained with latest network data. Accuracy: 97.3%.",
-    time: "3 hours ago",
-    read: true,
-  },
-];
+type AlertLevel = "critical" | "high" | "medium" | "low" | "info";
+
+interface AlertRow {
+  id: string;
+  title: string;
+  message: string | null;
+  severity: AlertLevel;
+  is_read: boolean;
+  created_at: string;
+}
 
 const levelConfig = {
   critical: { icon: XCircle, cls: "border-destructive/30 bg-destructive/5 text-destructive" },
@@ -61,6 +24,21 @@ const levelConfig = {
 };
 
 export default function AlertsPage() {
+  const [alerts, setAlerts] = useState<AlertRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data, error } = await supabase
+        .from("alerts")
+        .select("id, title, message, severity, is_read, created_at")
+        .order("created_at", { ascending: false });
+      if (!error && data) setAlerts(data as AlertRow[]);
+      setLoading(false);
+    };
+    load();
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -75,35 +53,47 @@ export default function AlertsPage() {
         </div>
       </div>
 
-      <div className="space-y-3">
-        {alerts.map((alert, i) => {
-          const config = levelConfig[alert.level];
-          const Icon = config.icon;
-          return (
-            <motion.div
-              key={alert.id}
-              initial={{ opacity: 0, x: -12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.06 }}
-              className={`flex items-start gap-4 rounded-xl border p-4 shadow-card transition-all hover:shadow-glow ${config.cls} ${
-                !alert.read ? "ring-1 ring-current/20" : "opacity-70"
-              }`}
-            >
-              <Icon className="mt-0.5 h-5 w-5 flex-shrink-0" />
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold">{alert.title}</h4>
-                  <span className="text-[10px] font-mono text-muted-foreground">{alert.time}</span>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : alerts.length === 0 ? (
+        <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+          No alerts yet.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {alerts.map((alert, i) => {
+            const config = levelConfig[alert.severity];
+            const Icon = config.icon;
+            return (
+              <motion.div
+                key={alert.id}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.06 }}
+                className={`flex items-start gap-4 rounded-xl border p-4 shadow-card transition-all hover:shadow-glow ${config.cls} ${
+                  !alert.is_read ? "ring-1 ring-current/20" : "opacity-70"
+                }`}
+              >
+                <Icon className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold">{alert.title}</h4>
+                    <span className="text-[10px] font-mono text-muted-foreground">
+                      {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
+                    </span>
+                  </div>
+                  {alert.message && <p className="mt-1 text-xs opacity-80">{alert.message}</p>}
                 </div>
-                <p className="mt-1 text-xs opacity-80">{alert.message}</p>
-              </div>
-              {!alert.read && (
-                <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-current" />
-              )}
-            </motion.div>
-          );
-        })}
-      </div>
+                {!alert.is_read && (
+                  <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-current" />
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,10 @@
-import { recentThreats } from "@/lib/mock-data";
 import ThreatTable from "@/components/dashboard/ThreatTable";
-import { Shield, Filter } from "lucide-react";
+import { Shield, Filter, Loader2 } from "lucide-react";
+import { useThreats } from "@/hooks/useThreats";
 
 export default function ThreatsPage() {
+  const { threats, loading } = useThreats();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -21,22 +23,29 @@ export default function ThreatsPage() {
         </button>
       </div>
 
-      {/* Threat Summary Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-        {[
-          { label: "Active", count: recentThreats.filter(t => t.status === "active").length, cls: "text-destructive bg-destructive/10 border-destructive/20" },
-          { label: "Investigating", count: recentThreats.filter(t => t.status === "investigating").length, cls: "text-warning bg-warning/10 border-warning/20" },
-          { label: "Resolved", count: recentThreats.filter(t => t.status === "resolved").length, cls: "text-primary bg-primary/10 border-primary/20" },
-          { label: "Dismissed", count: recentThreats.filter(t => t.status === "dismissed").length, cls: "text-muted-foreground bg-muted border-border" },
-        ].map(s => (
-          <div key={s.label} className={`rounded-xl border p-4 ${s.cls}`}>
-            <p className="text-2xl font-heading font-bold">{s.count}</p>
-            <p className="text-xs font-medium uppercase tracking-wider">{s.label}</p>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+            {[
+              { label: "Active", count: threats.filter(t => t.status === "active").length, cls: "text-destructive bg-destructive/10 border-destructive/20" },
+              { label: "Investigating", count: threats.filter(t => t.status === "investigating").length, cls: "text-warning bg-warning/10 border-warning/20" },
+              { label: "Resolved", count: threats.filter(t => t.status === "resolved").length, cls: "text-primary bg-primary/10 border-primary/20" },
+              { label: "Dismissed", count: threats.filter(t => t.status === "dismissed").length, cls: "text-muted-foreground bg-muted border-border" },
+            ].map(s => (
+              <div key={s.label} className={`rounded-xl border p-4 ${s.cls}`}>
+                <p className="text-2xl font-heading font-bold">{s.count}</p>
+                <p className="text-xs font-medium uppercase tracking-wider">{s.label}</p>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <ThreatTable threats={recentThreats} />
+          <ThreatTable threats={threats} />
+        </>
+      )}
     </div>
   );
 }
