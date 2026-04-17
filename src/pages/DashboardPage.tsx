@@ -1,35 +1,54 @@
-import { Shield, Wifi, AlertTriangle, Activity, Lock, Clock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Shield, Wifi, AlertTriangle, Clock } from "lucide-react";
 import StatCard from "@/components/dashboard/StatCard";
 import ThreatTable from "@/components/dashboard/ThreatTable";
 import TrafficChart from "@/components/dashboard/TrafficChart";
 import ThreatPieChart from "@/components/dashboard/ThreatPieChart";
-import { networkStats, recentThreats, severityDistribution } from "@/lib/mock-data";
+import { networkStats, severityDistribution } from "@/lib/mock-data";
 import { motion } from "framer-motion";
+import { useThreats } from "@/hooks/useThreats";
+import { Loader2 } from "lucide-react";
 
 export default function DashboardPage() {
+  const { threats, loading } = useThreats();
+  const [alertCount, setAlertCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    import("@/integrations/supabase/client").then(({ supabase }) => {
+      supabase
+        .from("alerts")
+        .select("id", { count: "exact", head: true })
+        .then(({ count }) => setAlertCount(count ?? 0));
+    });
+  }, []);
+
+  const detected = threats.length;
+  const blocked = threats.filter((t) => t.status === "resolved" || t.status === "dismissed").length;
+  const active = threats.filter((t) => t.status === "active").length;
+
   return (
     <div className="space-y-6">
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatCard
           title="Threats Detected"
-          value={networkStats.threatsDetected}
-          subtitle="Last 24 hours"
+          value={loading ? "..." : detected}
+          subtitle={`${active} currently active`}
           icon={AlertTriangle}
           trend={{ value: 12, positive: false }}
           variant="danger"
         />
         <StatCard
           title="Threats Blocked"
-          value={networkStats.threatsBlocked}
-          subtitle={`${Math.round((networkStats.threatsBlocked / networkStats.threatsDetected) * 100)}% block rate`}
+          value={loading ? "..." : blocked}
+          subtitle={detected > 0 ? `${Math.round((blocked / detected) * 100)}% block rate` : "—"}
           icon={Shield}
           trend={{ value: 8, positive: true }}
           variant="primary"
         />
         <StatCard
-          title="Active Connections"
-          value={networkStats.activeConnections}
+          title="Open Alerts"
+          value={alertCount ?? "..."}
           subtitle={networkStats.bandwidth}
           icon={Wifi}
           variant="default"
@@ -81,7 +100,13 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* Threat Events Table */}
-      <ThreatTable threats={recentThreats} />
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <ThreatTable threats={threats} />
+      )}
     </div>
   );
 }
